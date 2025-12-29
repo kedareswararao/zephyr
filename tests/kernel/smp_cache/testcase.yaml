@@ -1,0 +1,12 @@
+tests:
+  kernel.smp.cache:
+    tags:
+      - kernel
+      - smp
+      - cache
+    filter: CONFIG_SMP and CONFIG_CACHE_MANAGEMENT
+    min_ram: 64
+    platform_exclude:
+      - qemu_x86
+    arch_exclude:
+      - posix
