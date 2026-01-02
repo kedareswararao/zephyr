@@ -66,3 +66,5 @@ if(CONFIG_GEN_SW_ISR_TABLE)
     zephyr_linker_sources(RODATA swi_tables.ld)
   endif()
 endif()
+
+zephyr_library_sources_ifdef(CONFIG_ARM64_PMU pmu.c)

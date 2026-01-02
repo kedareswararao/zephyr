@@ -445,3 +445,5 @@ config ARM64_SVE_VL_MAX
 	  the hardware supports will only waste memory.
 
 endif # CPU_CORTEX_A || CPU_AARCH64_CORTEX_R
+
+source "arch/arm64/core/Kconfig.pmu"
