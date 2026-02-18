@@ -1,0 +1,86 @@
+# AMD Xilinx CoreSight driver configuration
+
+config CORESIGHT_XLNX
+	bool "CoreSight driver for AMD Xilinx Versal/VersalNet"
+	depends on ARM64
+	depends on SOC_AMD_VERSALNET || SOC_XLNX_VERSAL || SOC_XLNX_VERSAL2
+	default y if BOARD_VERSALNET_APU
+	help
+	  Enable CoreSight trace support for AMD Xilinx Versal and VersalNet
+	  platforms. This driver supports:
+	  - ETM (Embedded Trace Macrocell) for CPU instruction tracing
+	  - TMC/ETR (Trace Memory Controller) for trace capture to memory
+	  - Funnel for merging trace from multiple CPU cores
+
+	  This is useful for debugging, profiling, and code coverage analysis
+	  on Cortex-A78 processors.
+
+if CORESIGHT_XLNX
+
+config CORESIGHT_XLNX_AUTO_INIT
+	bool "Auto-initialize CoreSight on boot"
+	default y
+	help
+	  Automatically initialize CoreSight components during system boot.
+	  If disabled, the application must call coresight_xlnx_init() manually.
+
+config CORESIGHT_XLNX_INIT_PRIORITY
+	int "CoreSight driver initialization priority"
+	default 50
+	help
+	  Initialization priority for the CoreSight driver. This determines
+	  when the driver is initialized during boot relative to other subsystems.
+
+config CORESIGHT_XLNX_BUFFER_SIZE
+	int "Trace buffer size in bytes"
+	default 4096
+	range 1024 1048576
+	help
+	  Size of the trace buffer for storing ETM trace data.
+	  Larger buffers can capture more trace data but use more memory.
+	  The buffer must be at least 1KB and at most 1MB.
+	  For production use, 64KB-256KB is recommended.
+
+config CORESIGHT_XLNX_TRACE_ID
+	int "ETM trace ID"
+	default 1
+	range 1 70
+	help
+	  Unique trace source ID for this CPU's ETM output.
+	  Each trace source in the system must have a unique ID.
+	  Valid range is 1-70.
+
+config CORESIGHT_XLNX_TIMESTAMP
+	bool "Enable global timestamps in trace"
+	default y
+	help
+	  Enable global timestamp packets in the trace stream.
+	  This allows correlating trace data with wall-clock time.
+
+config CORESIGHT_XLNX_CYCLE_ACCURATE
+	bool "Enable cycle-accurate tracing"
+	default n
+	help
+	  Enable cycle counting in trace output. This increases trace
+	  bandwidth but provides precise timing information.
+
+config CORESIGHT_XLNX_BRANCH_BROADCAST
+	bool "Enable branch broadcast"
+	default n
+	help
+	  Enable branch broadcast tracing. This records all branch targets,
+	  not just indirect branches, providing more complete trace but
+	  increasing trace bandwidth significantly.
+
+config CORESIGHT_XLNX_RETURN_STACK
+	bool "Enable return stack"
+	default y
+	help
+	  Enable the return stack feature for more efficient tracing of
+	  function call/return sequences.
+
+module = CORESIGHT_XLNX
+module-str = CoreSight Xilinx
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # CORESIGHT_XLNX

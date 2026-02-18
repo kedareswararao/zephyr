@@ -37,3 +37,24 @@
 	current-speed = <115200>;
 	clock-frequency = <100000000>;
 };
+
+&soc {
+	coresight: coresight@f0b00000 {
+		compatible = "xlnx,coresight-1.0";
+		reg = <0x0 0xf0b00000 0x0 0x100000>;
+		status = "okay";
+
+		/* CoreSight component base addresses for VersalNet APU0 Core0 */
+		etm-base = <0xf0b4c000>;    /* A78 ETM */
+		tmc-base = <0xf0b0c000>;    /* APU0 ETF (4K) */
+		funnel-base = <0xf0b08000>; /* APU0 Funnel */
+
+		/* Trace configuration */
+		trace-buffer-size = <65536>; /* 64KB trace buffer */
+		trace-id = <1>;
+
+		/* Enable advanced tracing features */
+		enable-timestamps;
+		enable-return-stack;
+	};
+};

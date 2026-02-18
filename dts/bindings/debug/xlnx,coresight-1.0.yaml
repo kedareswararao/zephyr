@@ -1,0 +1,81 @@
+# Copyright (c) 2026 AMD
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  AMD Xilinx CoreSight trace controller for Versal/VersalNet platforms.
+
+  This node represents the CoreSight debug and trace infrastructure,
+  including support for ETM (Embedded Trace Macrocell) CPU instruction
+  tracing and TMC/ETR (Trace Memory Controller) trace capture.
+
+  Example:
+    coresight: coresight@f0800000 {
+      compatible = "xlnx,coresight-1.0";
+      reg = <0x0 0xf0800000 0x0 0x4000>;
+      status = "okay";
+
+      trace-buffer-size = <65536>;
+      trace-id = <1>;
+    };
+
+compatible: "xlnx,coresight-1.0"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+    description: |
+      Base address and size of the CoreSight register block.
+
+  trace-buffer-size:
+    type: int
+    default: 4096
+    description: |
+      Size of the trace buffer in bytes. Must be a power of 2.
+      Recommended values: 4096 (4KB), 65536 (64KB), 262144 (256KB).
+
+  trace-id:
+    type: int
+    default: 1
+    description: |
+      Unique trace source ID for this CoreSight instance.
+      Valid range is 1-70. Each trace source must have a unique ID.
+
+  etm-base:
+    type: int
+    description: |
+      Base address of the ETM (Embedded Trace Macrocell) for CPU0.
+      If not specified, defaults to 0xF0841000 for Versal Net.
+
+  tmc-base:
+    type: int
+    description: |
+      Base address of the TMC/ETR (Trace Memory Controller).
+      If not specified, defaults to 0xF0803000 for Versal Net.
+
+  funnel-base:
+    type: int
+    description: |
+      Base address of the trace funnel.
+      If not specified, defaults to 0xF0802000 for Versal Net.
+
+  enable-timestamps:
+    type: boolean
+    description: |
+      Enable global timestamps in trace output.
+
+  enable-cycle-counting:
+    type: boolean
+    description: |
+      Enable cycle-accurate tracing. Increases trace bandwidth.
+
+  enable-branch-broadcast:
+    type: boolean
+    description: |
+      Enable branch broadcast tracing. Records all branch targets.
+
+  enable-return-stack:
+    type: boolean
+    description: |
+      Enable return stack for efficient function tracing.

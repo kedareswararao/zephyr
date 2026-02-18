@@ -1,0 +1,22 @@
+sample:
+  name: CoreSight Trace Sample
+  description: |
+    This sample demonstrates CPU instruction tracing using CoreSight
+    on AMD Xilinx Versal/VersalNet platforms.
+
+tests:
+  sample.drivers.coresight:
+    tags:
+      - drivers
+      - debug
+      - coresight
+      - arm64
+    platform_allow:
+      - amd_versal_net_app_amd_versal_net_apu
+      - qemu_cortex_a53
+    harness: console
+    harness_config:
+      type: multi_line
+      regex:
+        - "CoreSight initialized successfully"
+        - "Sample complete!"

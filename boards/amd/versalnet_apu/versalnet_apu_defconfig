@@ -18,7 +18,7 @@ CONFIG_UART_CONSOLE=y
 CONFIG_UART_PL011=y
 
 # This should be commented in order to test at EL1 S (EL1 Secure)
-CONFIG_ARMV8_A_NS=y
+#CONFIG_ARMV8_A_NS=y
 
 # FPU support is disabled due to QEMU limitations. When CONFIG_FPU_SHARING
 # is enabled, it uses the swpal instruction which QEMU does not emulate.
@@ -26,3 +26,10 @@ CONFIG_ARMV8_A_NS=y
 # comment the lines below.
 CONFIG_FPU=n
 CONFIG_FPU_SHARING=n
+
+# CoreSight tracing support
+CONFIG_DEBUG_COREDUMP=y
+CONFIG_CORESIGHT_XLNX=y
+CONFIG_CORESIGHT_XLNX_BUFFER_SIZE=65536
+CONFIG_CORESIGHT_XLNX_TIMESTAMP=y
+CONFIG_CORESIGHT_XLNX_RETURN_STACK=y
