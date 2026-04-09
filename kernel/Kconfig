@@ -1177,3 +1177,4 @@ config KERNEL_NO_LTO
 rsource "Kconfig.device"
 rsource "Kconfig.vm"
 rsource "Kconfig.init"
+rsource "Kconfig.pmu"

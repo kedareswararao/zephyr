@@ -438,4 +438,6 @@ config ARM64_SVE_VL_MAX
 	  limited to the specified length. Having a larger value than what
 	  the hardware supports will only waste memory.
 
+source "arch/arm64/core/Kconfig.pmu"
+
 endif # CPU_CORTEX_A || CPU_AARCH64_CORTEX_R

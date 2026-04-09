@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config HAS_PMU
+	bool
+	help
+	  Set when a hardware PMU backend implements <zephyr/pmu.h> (e.g.
+	  CONFIG_ARM64_PMU, or future ARMv8-R / RISC-V HPM options). Used to
+	  express dependencies in Kconfig and tests.
