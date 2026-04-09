@@ -54,4 +54,17 @@ config ZYCLICTEST_SHELL
 	  the application to run.
 	  Inspired by Linux cyclictest tool.
 
+config PERF_SHELL
+	bool "perf-like PMU shell (perf start / stop / report)"
+	depends on SHELL
+	depends on HAS_PMU
+	default n
+	help
+	  Register Zephyr shell commands similar to Linux perf for interactive
+	  PMU use: "perf start [-e <event>|help]", "perf list", "perf stop", and
+	  "perf report". Uses the architecture-neutral PMU API in pmu.h (for example
+	  the AArch64 backend behind CONFIG_ARM64_PMU). Intended as a separate
+	  change set stacked on the PMU driver PR; enable CONFIG_ARM64_PMU (or
+	  another backend selecting HAS_PMU) on the board.
+
 rsource "kernel_service/Kconfig"
