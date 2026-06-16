@@ -6,4 +6,13 @@ if BOARD_ZYNQMP_APU
 config BUILD_OUTPUT_BIN
 	default y
 
+config ZYNQMP_SMP_FARM_GDB
+	bool "Pin synchronization sample threads to CPU0 for farm GDB"
+	depends on SMP
+	help
+	  When enabled (via boards/amd/zynqmp_apu/support/thread_debug_smp_farm.conf),
+	  samples/synchronization pins both threads to CPU 0 instead of CPU 0+1.
+	  Required for hw_server GDB on the board farm: port 3001 only debugs
+	  Cortex-A53 #0 (see "monitor ps").
+
 endif # BOARD_ZYNQMP_APU
