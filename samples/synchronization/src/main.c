@@ -118,7 +118,12 @@ int main(void)
 		 * is set.
 		 */
 		k_thread_suspend(thread_b);
+#if defined(CONFIG_ZYNQMP_SMP_FARM_GDB)
+		/* Farm hw_server GDB (port 3001) only halts Cortex-A53 #0. */
+		k_thread_cpu_pin(thread_b, 0);
+#else
 		k_thread_cpu_pin(thread_b, 1);
+#endif
 		k_thread_resume(thread_b);
 	}
 #endif

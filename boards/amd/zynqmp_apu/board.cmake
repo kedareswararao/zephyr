@@ -28,3 +28,8 @@ if(CONFIG_BUILD_WITH_TFA)
 endif()
 
 include(${ZEPHYR_BASE}/boards/common/xsdb.board.cmake)
+
+# XSDB remains the default flasher (full PMUFW/FSBL/BL31 boot chain).
+# OpenOCD is the debugger for GDB attach via xilinx_zynqmp.cfg in the SDK.
+board_set_debugger(openocd)
+board_runner_args(openocd --target-handle uscale.a53.0)
