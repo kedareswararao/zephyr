@@ -1,0 +1,2 @@
+mainmenu "coredump_app_dump test"
+source "Kconfig.zephyr"
