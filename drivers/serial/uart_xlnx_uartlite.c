@@ -349,6 +349,24 @@ static int xlnx_uartlite_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
+static int xlnx_uartlite_deinit(const struct device *dev)
+{
+	const struct xlnx_uartlite_config *config = dev->config;
+
+	/* Reset both FIFOs and disable interrupts, leaving the IP quiesced so
+	 * the device can be re-initialized (e.g. after a reconfigurable-IP swap).
+	 */
+	sys_write32(CTRL_REG_RST_RX_FIFO | CTRL_REG_RST_TX_FIFO,
+		    config->base + CTRL_REG_OFFSET);
+
+	return 0;
+}
+#define XLNX_UARTLITE_DEINIT &xlnx_uartlite_deinit
+#else
+#define XLNX_UARTLITE_DEINIT NULL
+#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
+
 static DEVICE_API(uart, xlnx_uartlite_driver_api) = {
 	.poll_in = xlnx_uartlite_poll_in,
 	.poll_out = xlnx_uartlite_poll_out,
@@ -409,8 +427,9 @@ static const struct xlnx_uartlite_config xlnx_uartlite_##n##_config = {	\
 									\
 	static const struct xlnx_uartlite_config xlnx_uartlite_##n##_config;\
 									\
-	DEVICE_DT_INST_DEFINE(n,					\
+	DEVICE_DT_INST_DEINIT_DEFINE(n,					\
 			    xlnx_uartlite_init,				\
+			    XLNX_UARTLITE_DEINIT,			\
 			    NULL,					\
 			    &xlnx_uartlite_##n##_data,			\
 			    &xlnx_uartlite_##n##_config,		\

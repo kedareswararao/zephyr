@@ -366,6 +366,33 @@ static int gpio_xlnx_axi_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
+static int gpio_xlnx_axi_deinit(const struct device *dev)
+{
+	const struct gpio_xlnx_axi_config *config = dev->config;
+
+#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(interrupts)
+	if (config->interrupts_available) {
+		/* Disable global and per-channel interrupts, clear pending. */
+		sys_write32(0x0, config->base + GIER_OFFSET);
+		sys_write32(0x0, config->base + IPIER_OFFSET);
+		sys_write32(sys_read32(config->base + IPISR_OFFSET),
+			    config->base + IPISR_OFFSET);
+	}
+#endif
+	/* Tri-state all pins (inputs) to leave the IP in a safe state so the
+	 * device can be re-initialized (e.g. after a reconfigurable-IP swap).
+	 */
+	sys_write32(GENMASK(MAX_GPIOS - 1, 0),
+		    config->base + (config->channel * GPIO2_OFFSET) + GPIO_TRI_OFFSET);
+
+	return 0;
+}
+#define GPIO_XLNX_AXI_DEINIT &gpio_xlnx_axi_deinit
+#else
+#define GPIO_XLNX_AXI_DEINIT NULL
+#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
+
 static DEVICE_API(gpio, gpio_xlnx_axi_driver_api) = {
 	.pin_configure = gpio_xlnx_axi_pin_configure,
 	.port_get_raw = gpio_xlnx_axi_port_get_raw,
@@ -407,7 +434,8 @@ static DEVICE_API(gpio, gpio_xlnx_axi_driver_api) = {
 		.all_outputs = DT_INST_PROP_OR(n, xlnx_all_outputs_2, 0),                          \
 		.interrupts_available = DT_INST_NODE_HAS_PROP(n, interrupts)};                     \
                                                                                                    \
-	DEVICE_DT_DEFINE(DT_INST_CHILD(n, gpio2), &gpio_xlnx_axi_init, NULL,                       \
+	DEVICE_DT_DEINIT_DEFINE(DT_INST_CHILD(n, gpio2), &gpio_xlnx_axi_init,                      \
+			 GPIO_XLNX_AXI_DEINIT, NULL,                                               \
 			 &gpio_xlnx_axi_##n##_2_data, &gpio_xlnx_axi_##n##_2_config, PRE_KERNEL_1, \
 			 CONFIG_GPIO_INIT_PRIORITY, &gpio_xlnx_axi_driver_api);
 
@@ -450,7 +478,8 @@ static DEVICE_API(gpio, gpio_xlnx_axi_driver_api) = {
 			   irq_enable(DT_INST_IRQN(n));                                            \
 		   }))                                                                             \
                                                                                                    \
-	DEVICE_DT_INST_DEFINE(n, gpio_xlnx_axi_init, NULL, &gpio_xlnx_axi_##n##_data,              \
+	DEVICE_DT_INST_DEINIT_DEFINE(n, gpio_xlnx_axi_init, GPIO_XLNX_AXI_DEINIT, NULL,            \
+			      &gpio_xlnx_axi_##n##_data,                                           \
 			      &gpio_xlnx_axi_##n##_config, PRE_KERNEL_1,                           \
 			      CONFIG_GPIO_INIT_PRIORITY, &gpio_xlnx_axi_driver_api);
 
