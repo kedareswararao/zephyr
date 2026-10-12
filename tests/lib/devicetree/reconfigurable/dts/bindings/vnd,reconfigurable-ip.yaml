@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Test-only runtime-reconfigurable IP block
+
+compatible: "vnd,reconfigurable-ip"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true

@@ -1,0 +1,27 @@
+/*
+ * Copyright (c) 2026 Advanced Micro Devices, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	recfg_test {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		recfg0: recfg@10000000 {
+			compatible = "vnd,reconfigurable-ip";
+			reg = <0x10000000 0x1000>;
+			zephyr,reconfigurable;
+			status = "okay";
+		};
+
+		recfg1: recfg@20000000 {
+			compatible = "vnd,reconfigurable-ip";
+			reg = <0x20000000 0x2000>;
+			zephyr,reconfigurable;
+			status = "disabled";
+		};
+	};
+};

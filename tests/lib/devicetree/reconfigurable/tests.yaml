@@ -1,0 +1,9 @@
+common:
+  tags:
+    - devicetree
+    - reconfigurable
+  harness: ztest
+  integration_platforms:
+    - native_sim
+tests:
+  libraries.devicetree.reconfigurable: {}
