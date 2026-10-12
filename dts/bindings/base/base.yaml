@@ -261,3 +261,17 @@ properties:
     description: |
       Do not initialize device automatically on boot. Device should be manually
       initialized using device_init().
+
+  zephyr,reconfigurable:
+    type: boolean
+    description: |
+      True if the node describes hardware whose resources (register base/size and
+      interrupt) may change at runtime, for example a soft-IP block in an FPGA
+      dynamic-function-exchange (DFX) region.
+
+      The devicetree-provided 'reg' and 'interrupts' are treated as the
+      initial/default values. When CONFIG_DT_RECONFIGURABLE is enabled, a mutable
+      descriptor is created from those defaults (see DT_RECONFIGURABLE_DEFINE())
+      and may be patched at runtime from a manifest before the owning device is
+      (re)initialized, so no runtime flattened devicetree (FDT) blob is required
+      on the target.

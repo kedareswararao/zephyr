@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config DT_RECONFIGURABLE
+	bool "Runtime-reconfigurable devicetree resources"
+	help
+	  Enable a RAM-backed descriptor table for devicetree nodes marked with
+	  the "zephyr,reconfigurable" property. Each descriptor is seeded from the
+	  node's devicetree reg/interrupts and may be patched at runtime from a
+	  manifest (for example on an FPGA dynamic-function-exchange segment switch)
+	  before the owning device is (re)initialized. This provides dynamic
+	  devicetree resource handling without a runtime flattened devicetree (FDT)
+	  blob on the target. Descriptors are created with DT_RECONFIGURABLE_DEFINE().
