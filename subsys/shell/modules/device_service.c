@@ -215,6 +215,54 @@ SHELL_DYNAMIC_CMD_CREATE(dsub_device_name_non_ready, device_name_get_non_ready);
 #define DEVICE_INIT_CMD
 #endif /* CONFIG_DEVICE_SHELL_INIT_CMD */
 
+#ifdef CONFIG_DEVICE_SHELL_DEINIT_CMD
+static int cmd_device_deinit(const struct shell *sh, size_t argc, char **argv)
+{
+	const struct device *dev;
+	int ret;
+
+	dev = shell_device_get_binding_all(argv[1]);
+	if (dev == NULL) {
+		shell_error(sh, "Device unknown (%s)", argv[1]);
+		return -ENODEV;
+	}
+
+	if (!device_is_ready(dev)) {
+		shell_info(sh, "Device %s is not initialized", argv[1]);
+		return 0;
+	}
+
+	ret = device_deinit(dev);
+	if (ret != 0) {
+		shell_error(sh, "Device %s deinitialization failed with err=%d",
+			    argv[1], ret);
+	} else {
+		shell_info(sh, "Device %s deinitialized successfully", argv[1]);
+	}
+
+	return ret;
+}
+
+static void device_name_get_ready(size_t idx,
+				  struct shell_static_entry *entry)
+{
+	const struct device *dev = shell_device_lookup(idx, NULL);
+
+	entry->syntax = dev != NULL ? dev->name : NULL;
+	entry->handler = NULL;
+	entry->help = "device";
+	entry->subcmd = NULL;
+}
+
+SHELL_DYNAMIC_CMD_CREATE(dsub_device_name_ready, device_name_get_ready);
+
+#define DEVICE_DEINIT_CMD SHELL_CMD_ARG(deinit, &dsub_device_name_ready,	\
+					"Manually deinitialize a device", \
+					cmd_device_deinit, 2, 0),
+#else
+#define DEVICE_DEINIT_CMD
+#endif /* CONFIG_DEVICE_SHELL_DEINIT_CMD */
+
 #ifdef CONFIG_PM_DEVICE_RUNTIME
 static int cmd_device_pm_toggle(const struct shell *sh,
 			 size_t argc, char **argv)
@@ -262,6 +310,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_device,
 	SHELL_CMD_ARG(list, &dsub_device_name_lookup,
 		      LIST_CMD_HELP, cmd_device_list, 1, 1),
 	DEVICE_INIT_CMD
+	DEVICE_DEINIT_CMD
 	PM_SHELL_CMD
 	SHELL_SUBCMD_SET_END /* Array terminated. */
 );

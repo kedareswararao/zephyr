@@ -20,6 +20,17 @@ config DEVICE_SHELL_INIT_CMD
 	  enable CONFIG_DEVICE_DEPS, it will take dependencies into
 	  account.
 
+config DEVICE_SHELL_DEINIT_CMD
+	bool "Device shell deinit command"
+	depends on DEVICE_SHELL
+	depends on DEVICE_DEINIT_SUPPORT
+	default y if !SHELL_MINIMAL
+	help
+	  Add a 'deinit' command to the device shell module in order
+	  to deinitialize, at runtime and manually, a device that was
+	  previously initialized. This is the companion to the 'init'
+	  command and requires CONFIG_DEVICE_DEINIT_SUPPORT.
+
 config DATE_SHELL
 	bool "Date shell"
 	default y if !SHELL_MINIMAL
