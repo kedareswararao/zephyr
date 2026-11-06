@@ -1,0 +1,51 @@
+common:
+  tags:
+    - benchmark
+  # The benchmark reads the PMU cycle counter, which QEMU does not emulate: arm64
+  # QEMU returns meaningless cycle counts and the Cortex-R QEMU model has no
+  # usable CP15 PMU. Build everywhere for compile coverage, but measure only on
+  # real hardware - run build-only under twister and flash the resulting binary
+  # on a board (with PMU access enabled by the bootloader/firmware) to measure.
+  build_only: true
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "latency benchmark: done"
+# Measures context-switch time and interrupt latency in CPU cycles using the PMU
+# cycle counter, for comparison with FreeRTOS. Builds on any ARM Cortex-A
+# (AArch64, PMUv3) or Cortex-R (AArch32, CP15 PMU) target with a GIC.
+tests:
+  # A-profile (AArch64), FreeRTOS-equivalent: both threads touch FP so the switch
+  # pays the full FP save/restore, as FreeRTOS does.
+  benchmark.arm_latency.arm64:
+    arch_allow:
+      - arm64
+    filter: CONFIG_ARM64_PMUV3 and CONFIG_GIC
+    extra_args:
+      - EXTRA_CONF_FILE="prj_arm64.conf"
+    integration_platforms:
+      - qemu_cortex_a53
+  # A-profile integer-only: Zephyr's native (lazy-FP) switch cost.
+  benchmark.arm_latency.arm64.int:
+    arch_allow:
+      - arm64
+    filter: CONFIG_ARM64_PMUV3 and CONFIG_GIC
+    extra_args:
+      - EXTRA_CONF_FILE="prj_arm64.conf"
+    extra_configs:
+      - CONFIG_FPU=n
+      - CONFIG_FPU_SHARING=n
+    integration_platforms:
+      - qemu_cortex_a53
+  # R-profile (AArch32 Cortex-R) integer-only: CP15 PMU cycle counter. The
+  # A-profile FP save path differs from R-profile, so FP is left off here.
+  benchmark.arm_latency.cortex_r:
+    arch_allow:
+      - arm
+    filter: CONFIG_CPU_AARCH32_CORTEX_R and CONFIG_GIC
+    extra_configs:
+      - CONFIG_FPU=n
+      - CONFIG_FPU_SHARING=n
+    integration_platforms:
+      - qemu_cortex_r5
