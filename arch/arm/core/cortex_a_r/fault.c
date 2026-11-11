@@ -259,6 +259,128 @@ bool z_arm_fault_undef_instruction_fp(void)
 
 	return false;
 }
+
+#if defined(CONFIG_USE_SWITCH)
+/*
+ * Lazy-owner VFP model for the USE_SWITCH context switch path.
+ *
+ * Unlike the SVC swap path, z_arm_context_switch() never saves the register
+ * file: it would have to write through the outgoing thread pointer, which can
+ * be a transitional read-only pseudo-thread early in boot. Instead the live
+ * VFP registers stay owned by _current_cpu->arch.fpu_owner, the switch only
+ * toggles VFP access for the incoming thread, and the first FP-access trap
+ * afterwards spills the previous owner and fills the faulting thread. This
+ * mirrors the AArch64 owner model (arch/arm64/core/fpu.c).
+ *
+ * The whole file is the VFP register bank plus FPSCR, which is exactly what
+ * struct _preempt_float holds under USE_SWITCH: d0-d15 on S32_D16 parts and
+ * the full d0-d31 on S64_D32 parts (e.g. the Armv8-R Cortex-R52 FPU).
+ */
+static ALWAYS_INLINE void z_arm_fpu_regs_save(struct _preempt_float *regs)
+{
+	/* A single vstm transfers at most 16 doublewords, so d16-d31 needs a
+	 * second store. d16_d31[] sits right after s0-s31, keeping the file
+	 * contiguous.
+	 */
+	__asm__ volatile ("vstmia %0, {d0-d15}\n" : : "r" (regs) : "memory");
+#if defined(CONFIG_VFP_FEATURE_REGS_S64_D32)
+	__asm__ volatile ("vstmia %0, {d16-d31}\n" : : "r" (regs->d16_d31) : "memory");
+#endif
+	regs->fpscr = __get_FPSCR();
+}
+
+static ALWAYS_INLINE void z_arm_fpu_regs_restore(struct _preempt_float *regs)
+{
+	__set_FPSCR(regs->fpscr);
+	__asm__ volatile ("vldmia %0, {d0-d15}\n" : : "r" (regs) : "memory");
+#if defined(CONFIG_VFP_FEATURE_REGS_S64_D32)
+	__asm__ volatile ("vldmia %0, {d16-d31}\n" : : "r" (regs->d16_d31) : "memory");
+#endif
+}
+
+/*
+ * Called from z_arm_context_switch() with the incoming thread as argument.
+ * Grant VFP access only if that thread already owns the live registers;
+ * otherwise deny it so its first FP instruction traps into z_arm_fpu_trap().
+ */
+void z_arm_fpu_thread_context_switch(struct k_thread *incoming)
+{
+	if (_current_cpu->arch.fpu_owner == incoming) {
+		__set_FPEXC(FPEXC_EN);
+	} else {
+		__set_FPEXC(0);
+	}
+}
+
+/*
+ * FP-access trap handler. Enable the VFP and spill the current owner's
+ * register file, dropping ownership. The owner can be _current when the FPU
+ * is first accessed from an interrupt that preempted its own thread: the
+ * thread's registers are still live in the VFP, so this captures them intact
+ * before the handler can clobber them.
+ *
+ * When the trap is taken from exception/interrupt context the VFP is left
+ * ownerless scratch for the handler and the interrupted thread reloads its
+ * file on its next FP access, once z_arm_cortex_ar_exit_exc re-denies the VFP
+ * at thread level. From thread context the faulting thread becomes the owner.
+ * This mirrors z_arm64_fpu_trap() in arch/arm64/core/fpu.c.
+ */
+static void z_arm_fpu_trap(void)
+{
+	struct k_thread *owner = _current_cpu->arch.fpu_owner;
+
+	__set_FPEXC(FPEXC_EN);
+
+	if (owner != NULL) {
+		z_arm_fpu_regs_save(&owner->arch.preempt_float);
+		_current_cpu->arch.fpu_owner = NULL;
+	}
+
+	if (_current_cpu->arch.exc_depth > 1) {
+		return;
+	}
+
+	z_arm_fpu_regs_restore(&_current->arch.preempt_float);
+	_current_cpu->arch.fpu_owner = _current;
+}
+
+#if defined(CONFIG_FPU_SHARING_EAGER)
+/*
+ * Eager owner model: the VFP stays enabled for threads, so the context switch
+ * spills the outgoing owner's file on entry, while its d0-d15 are still live
+ * and before any MPU or instrumentation C call can clobber them, then fills
+ * the incoming thread on exit and takes ownership. This trades the lazy
+ * model's per-switch FP-access trap for an unconditional save/restore,
+ * matching FreeRTOS-class switch cost on FP-heavy workloads.
+ *
+ * Interrupts are still handled with the VFP disabled (see _isr_wrapper and
+ * z_arm_cortex_ar_exit_exc): an FP-using ISR traps into z_arm_fpu_trap(),
+ * which spills the interrupted thread's file and drops ownership. On return
+ * to thread level the VFP is left denied, so the thread takes a single
+ * re-enable trap on its next FP access; the common FP-free ISR keeps the
+ * eager path trap-free. Both halves use FPEXC_EN explicitly because the ISR
+ * path may have disabled the VFP before the switch runs.
+ */
+
+void z_arm_fpu_eager_save(void)
+{
+	struct k_thread *owner = _current_cpu->arch.fpu_owner;
+
+	__set_FPEXC(FPEXC_EN);
+
+	if (owner != NULL) {
+		z_arm_fpu_regs_save(&owner->arch.preempt_float);
+	}
+}
+
+void z_arm_fpu_eager_restore(void)
+{
+	__set_FPEXC(FPEXC_EN);
+	z_arm_fpu_regs_restore(&_current->arch.preempt_float);
+	_current_cpu->arch.fpu_owner = _current;
+}
+#endif /* CONFIG_FPU_SHARING_EAGER */
+#endif /* CONFIG_USE_SWITCH */
 #endif
 
 /**
@@ -268,6 +390,19 @@ bool z_arm_fault_undef_instruction_fp(void)
  */
 bool z_arm_fault_undef_instruction(struct arch_esf *esf)
 {
+#if defined(CONFIG_FPU_SHARING) && defined(CONFIG_USE_SWITCH)
+	/*
+	 * Under USE_SWITCH the undef vector is also the VFP re-enable trap. If
+	 * the VFP was disabled, this is an FP-access trap: hand it to the
+	 * lazy-owner handler and return so the instruction re-executes. A real
+	 * undefined instruction (VFP already enabled) falls through to crash.
+	 */
+	if ((__get_FPEXC() & FPEXC_EN) == 0) {
+		z_arm_fpu_trap();
+		return false;
+	}
+#endif
+
 #if defined(CONFIG_FPU_SHARING)
 	/*
 	 * This is a true undefined instruction and we will be crashing

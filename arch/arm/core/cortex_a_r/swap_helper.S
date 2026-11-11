@@ -69,6 +69,24 @@ SECTION_FUNC(TEXT, z_arm_do_swap)
     cps #MODE_SVC
 
 #if defined(CONFIG_FPU_SHARING)
+#if defined(CONFIG_FPU_SHARING_EAGER)
+    ldrh r0, [r2, #_thread_offset_to_user_options]
+    tst r0, #K_FP_REGS /* _current->base.user_options & K_FP_REGS */
+    beq out_fp_inactive
+
+    /*
+     * Eager FP: the VFP is always enabled for FP threads, so store the whole
+     * register file and FPSCR to the thread in one shot, with no enable/disable
+     * toggles and no exception-frame spill. {d0-d15} covers s0-s31 and uses the
+     * 64-bit-wide store path (one transfer per two single registers).
+     */
+    add r0, r2, #_thread_offset_to_preempt_float
+    vstmia r0!, {d0-d15}
+    vmrs r3, fpscr
+    str r3, [r0]
+
+out_fp_inactive:
+#else
     ldrh r0, [r2, #_thread_offset_to_user_options]
     tst r0, #K_FP_REGS /* _current->base.user_options & K_FP_REGS */
     beq out_fp_inactive
@@ -98,8 +116,12 @@ out_store_thread_context:
     add r0, r2, #_thread_offset_to_preempt_float
     vstmia r0, {s16-s31}
 
-    mov ip, #0
-    vmsr fpexc, ip
+    /*
+     * Leave the VFP enabled here. The incoming context either keeps it on
+     * (FPU user, restored below and in fpu_exc_exit) or has it disabled on
+     * exception exit (non-FPU frame), so disabling it now would only add a
+     * redundant FPEXC write that fpu_exc_exit immediately reverses.
+     */
 
 out_fp_inactive:
     /*
@@ -108,6 +130,7 @@ out_fp_inactive:
      */
     mov r0, #0
     str r0, [r1, #___cpu_t_fp_ctx_OFFSET]
+#endif /* CONFIG_FPU_SHARING_EAGER */
 #endif /* CONFIG_FPU_SHARING */
 
     /* fetch the thread to run from the ready queue cache */
@@ -151,6 +174,23 @@ out_fp_inactive:
     cps #MODE_SVC
 
 #if defined(CONFIG_FPU_SHARING)
+#if defined(CONFIG_FPU_SHARING_EAGER)
+    ldrh r0, [r2, #_thread_offset_to_user_options]
+    tst r0, #K_FP_REGS /* _current->base.user_options & K_FP_REGS */
+    beq in_fp_inactive
+
+    /*
+     * Eager FP: restore the whole register file and FPSCR from the thread in
+     * one shot. The VFP is already enabled and stays enabled, so the thread
+     * resumes with no re-enable toggle and no trap. {d0-d15} covers s0-s31.
+     */
+    add r0, r2, #_thread_offset_to_preempt_float
+    vldmia r0!, {d0-d15}
+    ldr r3, [r0]
+    vmsr fpscr, r3
+
+in_fp_inactive:
+#else
     ldrh r0, [r2, #_thread_offset_to_user_options]
     tst r0, #K_FP_REGS /* _current->base.user_options & K_FP_REGS */
     beq in_fp_inactive
@@ -162,16 +202,26 @@ out_fp_inactive:
     add r0, r2, #_thread_offset_to_preempt_float
     vldmia r0, {s16-s31}
 
-    mov r3, #0
-    vmsr fpexc, r3
+    /*
+     * Leave the VFP enabled: this is an FPU user, fpu_exc_exit restores the
+     * caller-saved s0-s15 and keeps it enabled, so the thread resumes without
+     * a re-enable trap. Disabling here would only be undone there.
+     */
 
 in_fp_inactive:
+#endif /* CONFIG_FPU_SHARING_EAGER */
 #endif /* CONFIG_FPU_SHARING */
 
-#if defined (CONFIG_ARM_MPU)
-    /* r2 contains k_thread */
+#if defined(CONFIG_ARM_MPU) && \
+	(defined(CONFIG_USERSPACE) || defined(CONFIG_MPU_STACK_GUARD))
+    /*
+     * Re-program the dynamic memory map. Dynamic regions only exist for a
+     * thread's memory domain / user stack (CONFIG_USERSPACE) or a stack guard
+     * (CONFIG_MPU_STACK_GUARD); with neither enabled the static boot map is
+     * already complete and z_arm_configure_dynamic_mpu_regions() has nothing to
+     * do, so skip the per-switch call entirely. r2 contains k_thread.
+     */
     mov r0, r2
-    /* Re-program dynamic memory map */
     push {r0, lr}
     bl z_arm_configure_dynamic_mpu_regions
     pop {r0, lr}
@@ -239,6 +289,15 @@ svc_system_thread:
     push {r0-r3, r12, lr}
 
 #if defined(CONFIG_FPU_SHARING)
+#if defined(CONFIG_FPU_SHARING_EAGER)
+    /*
+     * Eager FP: the VFP stays enabled and z_arm_do_swap saves/restores the
+     * whole register file, so there is no lazy per-frame save, no disable and
+     * no fp_ctx bookkeeping. Keep the frame allocation so the exit path stays
+     * balanced.
+     */
+    sub sp, sp, #___fpu_t_SIZEOF
+#else
     sub sp, sp, #___fpu_t_SIZEOF
 
     /*
@@ -266,6 +325,7 @@ _vfp_not_enabled:
     ldr r0, [r2, #___cpu_t_fp_ctx_OFFSET]
     cmp r0, #0
     streq sp, [r2, #___cpu_t_fp_ctx_OFFSET]
+#endif /* CONFIG_FPU_SHARING_EAGER */
 #endif /* CONFIG_FPU_SHARING */
 
     mov ip, sp

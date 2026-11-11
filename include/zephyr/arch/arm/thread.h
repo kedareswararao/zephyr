@@ -50,6 +50,31 @@ typedef struct _callee_saved _callee_saved_t;
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
 struct _preempt_float {
 #ifndef _ARM_M_SWITCH
+#if defined(CONFIG_FPU_SHARING_EAGER) || defined(CONFIG_USE_SWITCH)
+	/*
+	 * Eager mode and the USE_SWITCH lazy-owner model both save the whole
+	 * register file in one place, so the caller-saved half (s0-s15) is kept
+	 * here, ahead of s16-s31, to allow a single contiguous vstm/vldm of
+	 * {s0-s31} (plus {d16-d31} on S64_D32 parts). FPSCR follows the
+	 * registers.
+	 */
+	float  s0;
+	float  s1;
+	float  s2;
+	float  s3;
+	float  s4;
+	float  s5;
+	float  s6;
+	float  s7;
+	float  s8;
+	float  s9;
+	float  s10;
+	float  s11;
+	float  s12;
+	float  s13;
+	float  s14;
+	float  s15;
+#endif /* CONFIG_FPU_SHARING_EAGER || CONFIG_USE_SWITCH */
 	float  s16;
 	float  s17;
 	float  s18;
@@ -66,6 +91,17 @@ struct _preempt_float {
 	float  s29;
 	float  s30;
 	float  s31;
+#if defined(CONFIG_FPU_SHARING_EAGER) || defined(CONFIG_USE_SWITCH)
+#if defined(CONFIG_VFP_FEATURE_REGS_S64_D32)
+	/*
+	 * The upper VFP bank d16-d31 has no single-precision aliases, so it is
+	 * stored as 16 doubles immediately after s0-s31 (d0-d15), keeping the
+	 * whole d0-d31 file contiguous for a single vstm/vldm {d0-d31}.
+	 */
+	double d16_d31[16];
+#endif /* CONFIG_VFP_FEATURE_REGS_S64_D32 */
+	uint32_t fpscr;
+#endif /* CONFIG_FPU_SHARING_EAGER || CONFIG_USE_SWITCH */
 #endif /* !_ARM_M_SWITCH */
 };
 #endif

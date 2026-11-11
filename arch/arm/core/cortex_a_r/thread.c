@@ -158,9 +158,26 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 #endif /* CONFIG_COMPILER_ISA_THUMB2 */
 
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
+#if !defined(CONFIG_USE_SWITCH)
+	/*
+	 * The swap-based exception-return path (fpu_exc_exit) expects an FP
+	 * exception frame below the basic frame, so reserve and zero it. The
+	 * USE_SWITCH return path (z_arm_cortex_ar_exit_exc) carries no FP
+	 * exception frame - eager FP keeps the register file in the thread
+	 * object - so the frame must not be inserted there.
+	 */
 	iframe = (struct __basic_sf *)
 		((uintptr_t)iframe - sizeof(struct __fpu_sf));
 	memset(iframe, 0, sizeof(struct __fpu_sf));
+#endif /* !CONFIG_USE_SWITCH */
+#if defined(CONFIG_FPU_SHARING_EAGER) || defined(CONFIG_USE_SWITCH)
+	/*
+	 * Eager FP and the USE_SWITCH lazy-owner model both restore the whole
+	 * register file from the thread (eager on switch-in, lazy on the first
+	 * FP-access trap), so start it zeroed rather than with stale contents.
+	 */
+	memset(&thread->arch.preempt_float, 0, sizeof(thread->arch.preempt_float));
+#endif /* CONFIG_FPU_SHARING_EAGER || CONFIG_USE_SWITCH */
 #endif
 
 	thread->callee_saved.psp = (uint32_t)iframe;
@@ -433,6 +450,16 @@ int arch_float_disable(struct k_thread *thread)
 	int key = arch_irq_lock();
 
 	thread->base.user_options &= ~K_FP_REGS;
+
+#if defined(CONFIG_USE_SWITCH)
+	/*
+	 * Drop the lazy-owner reference so the register file is not spilled
+	 * back into this thread on the next FP-access trap.
+	 */
+	if (_current_cpu->arch.fpu_owner == thread) {
+		_current_cpu->arch.fpu_owner = NULL;
+	}
+#endif
 
 	__set_FPEXC(0);
 

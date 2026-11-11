@@ -252,6 +252,27 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_cortex_ar_exit_exc)
 	sub r1, r1, #1
 	strb r1, [r2, #_cpu_offset_to_exc_depth]
 
+#if defined(CONFIG_FPU_SHARING)
+	/*
+	 * Returning to thread level (exception depth back to zero): grant VFP
+	 * access only to the thread that owns the live register file, otherwise
+	 * deny it so the first FP instruction traps and the owner model reloads
+	 * the context. Nested exits keep the VFP as the trap left it. In eager
+	 * mode this is the only path that can deny the VFP, so an FP-using ISR
+	 * costs the interrupted thread a single re-enable trap. Mirrors
+	 * fpu_access_update() in arch/arm64/core/fpu.c.
+	 */
+	cmp r1, #0
+	bne 1f
+	ldr r0, [r2, #___cpu_t_current_OFFSET]
+	ldr r3, [r2, #_cpu_offset_to_fpu_owner]
+	cmp r0, r3
+	moveq r0, #FPEXC_EN
+	movne r0, #0
+	vmsr fpexc, r0
+1:
+#endif
+
 	/*
 	 * Restore r0-r3, r12, lr, lr_und and spsr_und from the exception stack
 	 * and return to the current thread.

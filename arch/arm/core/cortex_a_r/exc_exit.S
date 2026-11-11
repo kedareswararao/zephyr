@@ -64,7 +64,14 @@ system_thread_exit\@:
 .endm
 
 .macro fpu_exc_exit
-#if defined(CONFIG_FPU_SHARING)
+#if defined(CONFIG_FPU_SHARING) && defined(CONFIG_FPU_SHARING_EAGER)
+	/*
+	 * Eager FP: the register file is restored in full by the context switch
+	 * and the VFP stays enabled, so there is nothing to restore here. Just
+	 * release the (unused) FP exception frame to keep the stack balanced.
+	 */
+	add sp, sp, #___fpu_t_SIZEOF
+#elif defined(CONFIG_FPU_SHARING)
 	/*
 	 * If the floating point context pointer is null, then a context was
 	 * saved so restore the float context from the exception stack frame.
@@ -81,13 +88,13 @@ system_thread_exit\@:
 	cmp r0, #0
 	moveq r1, #0
 	streq r1, [r2, #___cpu_t_fp_ctx_OFFSET]
-	b vfp_exit\@
+	b vfp_disable\@
 
 vfp_restore\@:
 	add r3, sp, #___fpu_sf_t_fpscr_OFFSET
 	ldm r3, {r1, r2}
 	tst r2, #FPEXC_EN
-	beq vfp_exit\@
+	beq vfp_disable\@
 
 	vmsr fpexc, r2
 	vmsr fpscr, r1
@@ -97,11 +104,25 @@ vfp_restore\@:
 	vldmia r3!, {d16-d31}
 #endif
 
-vfp_exit\@:
-	/* Leave the VFP disabled when leaving */
+	/*
+	 * The restored context was using the VFP when it was switched or
+	 * interrupted out (frame FPEXC.EN set) and its registers are now fully
+	 * reloaded, so leave the VFP enabled. This skips a redundant
+	 * undefined-instruction trap that would otherwise fire on the thread's
+	 * next FP access only to re-enable the VFP.
+	 */
+	b vfp_exit\@
+
+vfp_disable\@:
+	/*
+	 * The restored context was not an active FP user (or a spill is still
+	 * pending): leave the VFP disabled so the first FP access traps and
+	 * lazily enables it (first-touch detection and lazy IRQ save).
+	 */
 	mov r1, #0
 	vmsr fpexc, r1
 
+vfp_exit\@:
 	add sp, sp, #___fpu_t_SIZEOF
 #endif
 .endm

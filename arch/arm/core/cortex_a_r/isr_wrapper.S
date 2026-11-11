@@ -87,6 +87,15 @@ isr_system_thread:
 	push {r0-r3, r12, lr}
 
 #if defined(CONFIG_FPU_SHARING)
+#if defined(CONFIG_FPU_SHARING_EAGER)
+	/*
+	 * Eager FP: the VFP stays enabled and the register file is saved and
+	 * restored in full by the context switch, so no lazy per-frame save,
+	 * disable or fp_ctx bookkeeping is needed here. Keep the frame allocation
+	 * so the exit path stays balanced. ISRs must not use the FPU in this mode.
+	 */
+	sub sp, sp, #___fpu_t_SIZEOF
+#else
 	sub sp, sp, #___fpu_t_SIZEOF
 
 	/*
@@ -114,6 +123,7 @@ _vfp_not_enabled:
 	ldr r0, [r2, #___cpu_t_fp_ctx_OFFSET]
 	cmp r0, #0
 	streq sp, [r2, #___cpu_t_fp_ctx_OFFSET]
+#endif /* CONFIG_FPU_SHARING_EAGER */
 #endif /* CONFIG_FPU_SHARING */
 
 	/*
@@ -290,6 +300,18 @@ spurious_continue:
 SECTION_FUNC(TEXT, _isr_wrapper)
 	sub lr, #4
 	z_arm_cortex_ar_enter_exc
+
+#if defined(CONFIG_FPU_SHARING)
+	/*
+	 * Disable the VFP on exception entry, in both the lazy and eager
+	 * modes, so that any FP use by the ISR traps into the owner handler,
+	 * which spills the interrupted thread's register file before the ISR
+	 * can clobber it. The VFP access is re-evaluated against the owner in
+	 * z_arm_cortex_ar_exit_exc when returning to thread level.
+	 */
+	mov r0, #0
+	vmsr fpexc, r0
+#endif
 
 	/* Increment interrupt nesting count */
 	get_cpu r2

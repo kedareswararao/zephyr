@@ -40,6 +40,27 @@ SECTION_FUNC(TEXT, z_arm_context_switch)
 
 	stm r2, {r4-r11, sp, lr}
 
+#if defined(CONFIG_FPU_SHARING_EAGER)
+	/*
+	 * Eager FP: spill the outgoing owner's register file now, while its
+	 * d0-d15 are still live and before any C call below (MPU, instrument)
+	 * can clobber the caller-saved VFP registers. r0 (new) and r1 (old)
+	 * must survive the call.
+	 */
+	push {r0, r1, r2, lr}
+	bl z_arm_fpu_eager_save
+	pop {r0, r1, r2, lr}
+#endif
+
+	/*
+	 * Lazy-owner FP (CONFIG_FPU_SHARING): the register file is NOT saved
+	 * here. It stays live in the VFP owned by _current_cpu->arch.fpu_owner
+	 * and is only spilled on the next FP-access trap (z_arm_fpu_trap()),
+	 * which runs against a real thread - never the transitional pointers
+	 * this switch can be entered with. VFP access for the incoming thread is
+	 * updated below, after its context is restored.
+	 */
+
 	/* save current thread's exception depth */
 	get_cpu r2
 	ldrb r3, [r2, #_cpu_offset_to_exc_depth]
@@ -84,6 +105,26 @@ SECTION_FUNC(TEXT, z_arm_context_switch)
 	push {lr}
 	bl z_thread_mark_switched_in
 	pop {lr}
+#endif
+
+#if defined(CONFIG_FPU_SHARING_EAGER)
+	/*
+	 * Eager FP: fill the incoming thread's (_current's) register file and
+	 * take ownership. VFP stays enabled, so no FP-access trap follows.
+	 */
+	push {r0, lr}
+	bl z_arm_fpu_eager_restore
+	pop {r0, lr}
+#elif defined(CONFIG_FPU_SHARING)
+	/*
+	 * Lazy-owner FP: do not touch the register file. Only update VFP access
+	 * for the incoming thread (r0): enabled if it already owns the live
+	 * registers, disabled otherwise so its first FP access traps and the
+	 * file is saved from the old owner and restored then (z_arm_fpu_trap()).
+	 */
+	push {r0, lr}
+	bl z_arm_fpu_thread_context_switch
+	pop {r0, lr}
 #endif
 
 	bx lr

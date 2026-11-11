@@ -213,3 +213,40 @@ config NEON
 	select CPU_HAS_NEON
 	help
 	  This option signifies the use of a NEON Advanced SIMD coprocessor.
+
+choice FPU_SHARING_MODE
+	prompt "FPU register sharing mode"
+	depends on FPU_SHARING
+	depends on CPU_AARCH32_CORTEX_A || CPU_AARCH32_CORTEX_R
+	default FPU_SHARING_EAGER
+	help
+	  Selects how the VFP register file is preserved across thread context
+	  switches on AArch32 Cortex-A/R.
+
+config FPU_SHARING_LAZY
+	bool "Lazy"
+	help
+	  The VFP is disabled on exception entry and the register file is saved
+	  and restored on demand: the first FP access after a switch takes an
+	  undefined-instruction trap that enables the VFP and spills the previous
+	  owner. Cheapest when a thread does not touch the FPU between switches,
+	  and it lets interrupt service routines use the FPU safely.
+
+config FPU_SHARING_EAGER
+	bool "Eager"
+	help
+	  Default scheme. Save and restore the full VFP register file eagerly on
+	  every thread context switch (d0-d15 on S32_D16 parts, d0-d31 on S64_D32
+	  parts). The VFP is kept enabled for floating-point threads, so the switch
+	  does a single contiguous store/load of the register file with no
+	  per-switch disable/re-enable and no undefined-instruction trap on the
+	  first FP access after a switch. This lowers the context-switch latency
+	  for floating-point-heavy workloads at the cost of always saving the FP
+	  registers of a floating-point thread, even when it does not touch the FPU
+	  between switches.
+
+	  Interrupts are still taken with the VFP disabled, so an interrupt service
+	  routine that uses the FPU is handled safely; it costs the interrupted
+	  thread a single re-enable trap on its next FP access.
+
+endchoice

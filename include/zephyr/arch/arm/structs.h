@@ -8,6 +8,8 @@
 
 #include <zephyr/types.h>
 
+struct k_thread;
+
 #if defined(CONFIG_CPU_AARCH32_CORTEX_A) || defined(CONFIG_CPU_AARCH32_CORTEX_R)
 /* Per CPU architecture specifics */
 struct _cpu_arch {
@@ -19,6 +21,15 @@ struct _cpu_arch {
 	 * by the ISR wrapper; read through arch_irq_get_active().
 	 */
 	uint32_t active_irq;
+#endif
+#if defined(CONFIG_USE_SWITCH) && defined(CONFIG_FPU_SHARING)
+	/*
+	 * Thread that currently owns the live VFP register file under the
+	 * USE_SWITCH lazy-owner FP model. The context switch only toggles VFP
+	 * access; the register file is saved to the owner and restored to the
+	 * faulting thread on the first FP-access trap after a switch.
+	 */
+	struct k_thread *fpu_owner;
 #endif
 };
 

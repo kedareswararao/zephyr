@@ -45,6 +45,9 @@ GEN_OFFSET_SYM(_cpu_arch_t, exc_depth);
 #if defined(CONFIG_ARM_TRACK_ACTIVE_IRQ)
 GEN_OFFSET_SYM(_cpu_arch_t, active_irq);
 #endif
+#if defined(CONFIG_USE_SWITCH) && defined(CONFIG_FPU_SHARING)
+GEN_OFFSET_SYM(_cpu_arch_t, fpu_owner);
+#endif
 #endif
 
 #if defined(CONFIG_ARM_STORE_EXC_RETURN) || defined(CONFIG_USERSPACE)

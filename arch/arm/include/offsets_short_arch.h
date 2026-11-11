@@ -35,6 +35,11 @@
 #define _cpu_offset_to_active_irq \
 	(___cpu_t_arch_OFFSET + ___cpu_arch_t_active_irq_OFFSET)
 #endif
+
+#if defined(CONFIG_USE_SWITCH) && defined(CONFIG_FPU_SHARING)
+#define _cpu_offset_to_fpu_owner \
+	(___cpu_t_arch_OFFSET + ___cpu_arch_t_fpu_owner_OFFSET)
+#endif
 #endif
 
 #if defined(CONFIG_USERSPACE) || defined(CONFIG_FPU_SHARING)
